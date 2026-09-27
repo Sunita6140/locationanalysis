@@ -1,0 +1,1566 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Location Analysis · Arrows on paths</title>
+
+  <link rel="stylesheet"
+        href="https://unpkg.com/leaflet@2.0.0-alpha.1/dist/leaflet.css">
+
+  <script type="importmap">
+  {
+    "imports": {
+      "leaflet": "https://unpkg.com/leaflet@2.0.0-alpha.1/dist/leaflet.js"
+    }
+  }
+  </script>
+
+  <style>
+    :root {
+      --bg: #0b1220;
+      --panel: rgba(15, 23, 42, 0.96);
+      --panel2: #111c31;
+      --border: rgba(148, 163, 184, .18);
+      --text: #e5edf8;
+      --muted: #94a3b8;
+      --accent: #38bdf8;
+      --danger: #fb7185;
+      --success: #34d399;
+      --shadow: 0 18px 50px rgba(0,0,0,.28);
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+        "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    #map {
+      position: fixed;
+      inset: 0;
+      z-index: 1;
+      background: #dbeafe;
+    }
+
+    .panel {
+      position: fixed;
+      z-index: 1000;
+      top: 16px;
+      left: 16px;
+      width: min(390px, calc(100vw - 32px));
+      max-height: calc(100vh - 32px);
+      overflow-y: auto;
+      padding: 18px;
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      background: var(--panel);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      box-shadow: var(--shadow);
+      scrollbar-width: thin;
+    }
+
+.panel::-webkit-scrollbar {
+  width: 8px;
+}
+
+.panel::-webkit-scrollbar-track {
+  background: transparent;
+  margin: 8px 0;
+}
+
+.panel::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, .28);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  transition: background .16s ease;
+}
+
+.panel::-webkit-scrollbar-thumb:hover {
+  background: rgba(56, 189, 248, .65);
+  background-clip: padding-box;
+  border: 2px solid transparent;
+}
+
+.panel::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+.panel {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, .35) transparent;
+}
+    .brand {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .brand h1 {
+      margin: 0;
+      font-size: 19px;
+      letter-spacing: -.02em;
+    }
+
+    .brand p {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .badge {
+      width: 38px;
+      height: 38px;
+      display: grid;
+      place-items: center;
+      border-radius: 12px;
+      background: linear-gradient(135deg,#38bdf8,#6366f1);
+      color: white;
+      font-weight: 800;
+    }
+
+    .section {
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px solid var(--border);
+    }
+
+    .section:first-of-type {
+      margin-top: 0;
+      padding-top: 0;
+      border-top: 0;
+    }
+
+    .title {
+      margin-bottom: 9px;
+      color: #cbd5e1;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: .09em;
+      text-transform: uppercase;
+    }
+
+    .buttons {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    button, .file-label {
+      appearance: none;
+      min-height: 38px;
+      padding: 9px 11px;
+      border: 1px solid rgba(148,163,184,.2);
+      border-radius: 10px;
+      background: #172238;
+      color: var(--text);
+      font: inherit;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      text-align: center;
+      transition: .16s ease;
+    }
+
+    button:hover, .file-label:hover {
+      background: #20304b;
+      border-color: rgba(56,189,248,.45);
+      transform: translateY(-1px);
+    }
+
+    button.primary, .file-label.primary {
+      background: linear-gradient(135deg,#0284c7,#2563eb);
+      border-color: transparent;
+    }
+
+    button:disabled {
+      opacity: .45;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    input[type=file] { display: none; }
+
+    .file-name {
+      margin-top: 7px;
+      color: var(--muted);
+      font-size: 11px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .status {
+      min-height: 18px;
+      margin-top: 7px;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.45;
+    }
+
+    .status.success { color: #6ee7b7; }
+    .status.error { color: #fda4af; }
+
+    .stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .stat {
+      padding: 10px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: rgba(17,28,49,.72);
+    }
+
+    .stat.wide { grid-column: 1 / -1; }
+
+    .stat-label {
+      color: var(--muted);
+      font-size: 10px;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+
+    .stat-value {
+      margin-top: 3px;
+      color: #f8fafc;
+      font-size: 12px;
+      font-weight: 750;
+      overflow-wrap: anywhere;
+    }
+
+    .entity-actions {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+
+    .entity-actions button {
+      min-height: 30px;
+      padding: 5px 8px;
+      font-size: 10px;
+    }
+
+    .entity-list {
+      display: grid;
+      gap: 6px;
+      max-height: 210px;
+      overflow-y: auto;
+    }
+
+    .entity-row {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      min-height: 34px;
+      padding: 6px 8px;
+      border-radius: 9px;
+      background: rgba(30,41,59,.62);
+      cursor: pointer;
+    }
+
+    .entity-row input {
+      margin: 0;
+      accent-color: var(--accent);
+    }
+
+    .swatch {
+      width: 11px;
+      height: 11px;
+      flex: 0 0 11px;
+      border: 2px solid rgba(255,255,255,.65);
+      border-radius: 50%;
+      box-shadow: 0 0 0 2px rgba(0,0,0,.18);
+    }
+
+    .entity-name {
+      min-width: 0;
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 12px;
+    }
+
+    .entity-count {
+      color: var(--muted);
+      font-size: 10px;
+    }
+
+    .empty {
+      padding: 10px 3px;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.5;
+    }
+
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .toggle-copy strong {
+      display: block;
+      font-size: 12px;
+    }
+
+    .toggle-copy span {
+      display: block;
+      margin-top: 2px;
+      color: var(--muted);
+      font-size: 10px;
+    }
+
+    .switch {
+      position: relative;
+      width: 44px;
+      height: 24px;
+      flex: 0 0 auto;
+    }
+
+    .switch input {
+      width: 0;
+      height: 0;
+      opacity: 0;
+    }
+
+    .slider {
+      position: absolute;
+      inset: 0;
+      border-radius: 999px;
+      background: #334155;
+      cursor: pointer;
+      transition: .2s;
+    }
+
+    .slider:before {
+      content: "";
+      position: absolute;
+      width: 18px;
+      height: 18px;
+      left: 3px;
+      top: 3px;
+      border-radius: 50%;
+      background: white;
+      transition: .2s;
+    }
+
+    .switch input:checked + .slider {
+      background: #0284c7;
+    }
+
+    .switch input:checked + .slider:before {
+      transform: translateX(20px);
+    }
+
+    /* ---- view mode segmented control ---- */
+    .mode-toggle {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      padding: 4px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: rgba(11,22,40,.75);
+    }
+
+    .mode-toggle button {
+      min-height: 32px;
+      padding: 6px 8px;
+      border: 1px solid transparent;
+      border-radius: 9px;
+      background: transparent;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+      transition: .16s ease;
+    }
+
+    .mode-toggle button:hover {
+      background: rgba(56,189,248,.08);
+      color: var(--text);
+      transform: none;
+    }
+
+    .mode-toggle button.active {
+      background: linear-gradient(135deg,#0284c7,#2563eb);
+      border-color: transparent;
+      color: #fff;
+      box-shadow: 0 4px 14px rgba(2,132,199,.35);
+    }
+
+    .mode-hint {
+      margin-top: 7px;
+      color: var(--muted);
+      font-size: 10px;
+      line-height: 1.45;
+    }
+
+    .time-section { display: none; }
+    .time-section.visible { display: block; }
+    .time-section.hidden-by-mode { display: none !important; }
+
+    .time-display {
+      padding: 10px;
+      border: 1px solid var(--border);
+      border-radius: 11px;
+      background: #0b1628;
+      text-align: center;
+    }
+
+    .time-local {
+      font-size: 14px;
+      font-weight: 800;
+    }
+
+    .time-utc {
+      margin-top: 3px;
+      color: var(--muted);
+      font-size: 10px;
+    }
+
+    .range-wrap {
+      margin-top: 8px;
+    }
+
+    input[type=range] {
+      width: 100%;
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+
+    .range-labels {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      color: var(--muted);
+      font-size: 9px;
+    }
+
+    .play-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 7px;
+      margin-top: 9px;
+    }
+
+    .speed-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 10px;
+    }
+
+    select {
+      flex: 1;
+      min-height: 30px;
+      padding: 4px 8px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #172238;
+      color: var(--text);
+      font: inherit;
+      font-size: 10px;
+    }
+
+    .map-badge {
+      position: fixed;
+      right: 16px;
+      bottom: 16px;
+      z-index: 900;
+      padding: 8px 11px;
+      border: 1px solid rgba(15,23,42,.12);
+      border-radius: 999px;
+      background: rgba(255,255,255,.9);
+      color: #0f172a;
+      box-shadow: 0 8px 25px rgba(0,0,0,.14);
+      font-size: 10px;
+      font-weight: 700;
+    }
+
+    .active-marker {
+      border: 3px solid white;
+      border-radius: 50%;
+      box-shadow: 0 0 0 3px rgba(15,23,42,.25),
+                  0 5px 18px rgba(0,0,0,.3);
+    }
+
+    .dot-icon {
+      background: transparent;
+      border: 0;
+    }
+
+    .dot {
+      width: 11px;
+      height: 11px;
+      border: 2px solid white;
+      border-radius: 50%;
+      box-shadow: 0 1px 6px rgba(0,0,0,.38);
+    }
+
+    /* ---- hover cursor on markers ---- */
+    .dot-icon,
+    .dot,
+    .active-marker {
+      cursor: pointer;
+    }
+
+    /* ---- custom hover tooltip theme ---- */
+    .leaflet-tooltip.point-tooltip {
+      padding: 8px 10px;
+      border: 1px solid rgba(148,163,184,.25);
+      border-radius: 10px;
+      background: rgba(15,23,42,.97);
+      color: #e5edf8;
+      box-shadow: 0 10px 28px rgba(0,0,0,.45);
+      font-size: 11px;
+      line-height: 1.45;
+      white-space: nowrap;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+    }
+
+    .leaflet-tooltip.point-tooltip::before {
+      border-top-color: rgba(15,23,42,.97);
+    }
+
+    .leaflet-tooltip.point-tooltip b {
+      color: #f8fafc;
+      font-weight: 800;
+    }
+
+    .tooltip-title {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 4px;
+      font-size: 12px;
+      font-weight: 800;
+      color: #f8fafc;
+    }
+
+    .tooltip-dot {
+      width: 9px;
+      height: 9px;
+      border: 2px solid rgba(255,255,255,.85);
+      border-radius: 50%;
+      flex: 0 0 9px;
+    }
+
+    .tooltip-row {
+      color: #cbd5e1;
+    }
+
+    .tooltip-row span {
+      color: #94a3b8;
+    }
+
+    .leaflet-popup-content {
+      margin: 12px 14px;
+      min-width: 220px;
+    }
+
+    .popup-title {
+      margin-bottom: 8px;
+      font-size: 14px;
+      font-weight: 800;
+    }
+
+    .popup-row {
+      margin: 4px 0;
+      color: #475569;
+      font-size: 11px;
+      line-height: 1.45;
+    }
+
+    .popup-row strong { color: #0f172a; }
+
+    /* arrow icon wrapper – no background, no border */
+    .arrow-icon {
+      background: transparent;
+      border: 0;
+    }
+
+    @media (max-width: 600px) {
+      .panel {
+        top: 8px;
+        left: 8px;
+        width: min(360px, calc(100vw - 16px));
+        max-height: calc(100vh - 16px);
+        padding: 14px;
+      }
+
+      .map-badge {
+        right: 8px;
+        bottom: 8px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div id="map"></div>
+
+  <aside class="panel">
+    <div class="brand">
+      <div>
+        <h1>Location Analysis</h1>
+        <p>CSV-powered movement &amp; time analysis</p>
+      </div>
+      <div class="badge">LA</div>
+    </div>
+
+    <section class="section">
+      <div class="title">Data</div>
+
+      <div class="buttons">
+        <label class="file-label primary" for="csvInput">Upload CSV</label>
+        <button id="sampleBtn" type="button">Download Sample</button>
+      </div>
+
+      <input id="csvInput" type="file" accept=".csv,text/csv">
+
+      <div id="fileName" class="file-name">No file selected</div>
+      <div id="status" class="status">
+        Upload a CSV containing entity, timestamp, lat, and long.
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="title">Summary</div>
+
+      <div class="stats">
+        <div class="stat">
+          <div class="stat-label">Data Points</div>
+          <div id="statPoints" class="stat-value">—</div>
+        </div>
+
+        <div class="stat">
+          <div class="stat-label">Entities</div>
+          <div id="statEntities" class="stat-value">—</div>
+        </div>
+
+        <div class="stat wide">
+          <div class="stat-label">Time Range</div>
+          <div id="statRange" class="stat-value">—</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="title">View Mode</div>
+
+      <div class="mode-toggle" role="tablist" aria-label="View mode">
+        <button id="modeTimeBtn" type="button" class="active" role="tab" aria-selected="true">
+          Time-based
+        </button>
+        <button id="modeAllBtn" type="button" role="tab" aria-selected="false">
+          All at Once
+        </button>
+      </div>
+
+      <div id="modeHint" class="mode-hint">
+        Points appear progressively as the timeline advances.
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="title">Entities</div>
+
+      <div class="entity-actions">
+        <button id="selectAllBtn" type="button">Select all</button>
+        <button id="clearAllBtn" type="button">Clear all</button>
+      </div>
+
+      <div id="entityList" class="entity-list">
+        <div class="empty">Entities will appear here after a CSV is loaded.</div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="toggle-row">
+        <div class="toggle-copy">
+          <strong>Show Movement Paths</strong>
+          <span>Connect visible points in chronological order.</span>
+        </div>
+
+        <label class="switch">
+          <input id="pathToggle" type="checkbox">
+          <span class="slider"></span>
+        </label>
+      </div>
+    </section>
+
+    <section id="timeSection" class="section time-section">
+      <div class="title">Time Playback</div>
+
+      <div class="time-display">
+        <div id="currentLocal" class="time-local">—</div>
+        <div id="currentUtc" class="time-utc">UTC: —</div>
+      </div>
+
+      <div class="range-wrap">
+        <input id="timeSlider" type="range" min="0" max="0" step="1000" value="0">
+
+        <div class="range-labels">
+          <span id="rangeStart">—</span>
+          <span id="rangeEnd">—</span>
+        </div>
+      </div>
+
+      <div class="play-row">
+        <button id="playBtn" class="primary" type="button">▶ Play</button>
+        <button id="resetBtn" type="button">↺ Reset</button>
+      </div>
+
+      <div class="speed-row">
+        <span>Playback speed</span>
+        <select id="speedSelect">
+          <option value="0.5">0.5×</option>
+          <option value="1" selected>1×</option>
+          <option value="2">2×</option>
+          <option value="4">4×</option>
+          <option value="8">8×</option>
+        </select>
+      </div>
+    </section>
+  </aside>
+
+  <div id="mapBadge" class="map-badge">Loading Leaflet…</div>
+
+  <script type="module">
+    import {
+      Map as LeafletMap,
+      TileLayer,
+      Marker,
+      DivIcon,
+      LayerGroup,
+      Polyline,
+      LatLngBounds
+    } from "leaflet";
+
+    const state = {
+      rows: [],
+      entities: [],
+      colors: new Map(),
+      selectedEntities: new Set(),
+      currentTime: null,
+      minTime: null,
+      maxTime: null,
+      playing: false,
+      playTimer: null,
+      viewMode: "time"
+    };
+
+    const $ = id => document.getElementById(id);
+
+    const csvInput = $("csvInput");
+    const fileNameEl = $("fileName");
+    const statusEl = $("status");
+    const entityListEl = $("entityList");
+    const pathToggle = $("pathToggle");
+    const timeSection = $("timeSection");
+    const timeSlider = $("timeSlider");
+    const currentLocalEl = $("currentLocal");
+    const currentUtcEl = $("currentUtc");
+    const rangeStartEl = $("rangeStart");
+    const rangeEndEl = $("rangeEnd");
+    const playBtn = $("playBtn");
+    const resetBtn = $("resetBtn");
+    const speedSelect = $("speedSelect");
+    const mapBadge = $("mapBadge");
+
+    const modeTimeBtn = $("modeTimeBtn");
+    const modeAllBtn = $("modeAllBtn");
+    const modeHint = $("modeHint");
+
+    // -----------------------------------------------------------------------
+    // Leaflet
+    // -----------------------------------------------------------------------
+
+    const map = new LeafletMap("map", {
+      center: [20, 0],
+      zoom: 2,
+      zoomControl: true
+    });
+
+    new TileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: "&copy; OpenStreetMap contributors"
+    }).addTo(map);
+
+    const markerGroup = new LayerGroup().addTo(map);
+    const pathGroup = new LayerGroup().addTo(map);
+    const nodeGroup = new LayerGroup().addTo(map);
+    const activeGroup = new LayerGroup().addTo(map);
+
+    // -----------------------------------------------------------------------
+    // Helpers
+    // -----------------------------------------------------------------------
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function formatLocal(date) {
+      return new Intl.DateTimeFormat(undefined, {
+        dateStyle: "medium",
+        timeStyle: "medium"
+      }).format(date);
+    }
+
+    function formatUtc(date) {
+      return date.toISOString().replace(".000Z", "Z");
+    }
+
+    function formatShort(date) {
+      return new Intl.DateTimeFormat(undefined, {
+        dateStyle: "short",
+        timeStyle: "short"
+      }).format(date);
+    }
+
+    function setStatus(message, type = "") {
+      statusEl.textContent = message;
+      statusEl.className = "status" + (type ? " " + type : "");
+    }
+
+    function entityColor(index) {
+      const hue = (index * 137.507764) % 360;
+      const saturation = 82;
+      const lightness = 48;
+
+      const s = saturation / 100;
+      const l = lightness / 100;
+      const c = (1 - Math.abs(2 * l - 1)) * s;
+      const x = c * (1 - Math.abs((hue / 60) % 2 - 1));
+      const m = l - c / 2;
+
+      let r = 0, g = 0, b = 0;
+
+      if (hue < 60) [r,g,b] = [c,x,0];
+      else if (hue < 120) [r,g,b] = [x,c,0];
+      else if (hue < 180) [r,g,b] = [0,c,x];
+      else if (hue < 240) [r,g,b] = [0,x,c];
+      else if (hue < 300) [r,g,b] = [x,0,c];
+      else [r,g,b] = [c,0,x];
+
+      return `rgb(${Math.round((r+m)*255)}, ${Math.round((g+m)*255)}, ${Math.round((b+m)*255)})`;
+    }
+
+    function makeDotIcon(color) {
+      return new DivIcon({
+        className: "dot-icon",
+        html: `<div class="dot" style="background:${color}"></div>`,
+        iconSize: [15,15],
+        iconAnchor: [7.5,7.5],
+        popupAnchor: [0,-7]
+      });
+    }
+
+    function makeActiveIcon(color) {
+      return new DivIcon({
+        className: "dot-icon",
+        html: `<div class="active-marker" style="width:20px;height:20px;background:${color}"></div>`,
+        iconSize: [26,26],
+        iconAnchor: [13,13],
+        popupAnchor: [0,-12]
+      });
+    }
+
+    function popupHtml(row) {
+      return `
+        <div class="popup-title">${escapeHtml(row.entity)}</div>
+        <div class="popup-row"><strong>Local:</strong> ${escapeHtml(formatLocal(row.date))}</div>
+        <div class="popup-row"><strong>UTC:</strong> ${escapeHtml(formatUtc(row.date))}</div>
+        <div class="popup-row"><strong>Latitude:</strong> ${row.lat.toFixed(8)}</div>
+        <div class="popup-row"><strong>Longitude:</strong> ${row.long.toFixed(8)}</div>
+      `;
+    }
+
+    function tooltipHtml(row, color) {
+      return `
+        <div class="tooltip-title">
+          <span class="tooltip-dot" style="background:${color}"></span>
+          ${escapeHtml(row.entity)}
+        </div>
+        <div class="tooltip-row">${escapeHtml(formatLocal(row.date))}</div>
+        <div class="tooltip-row"><span>Lat:</span> ${row.lat.toFixed(6)} &nbsp; <span>Long:</span> ${row.long.toFixed(6)}</div>
+      `;
+    }
+
+    // -----------------------------------------------------------------------
+    // Draw arrow on every segment between consecutive points
+    // -----------------------------------------------------------------------
+
+    function addArrowsOnAllSegments(latlngs, color, group) {
+      if (latlngs.length < 2) return;
+
+      for (let i = 0; i < latlngs.length - 1; i++) {
+        const p1 = latlngs[i];
+        const p2 = latlngs[i + 1];
+
+        const dLat = p2[0] - p1[0];
+        const dLng = p2[1] - p1[1];
+
+        if (Math.abs(dLat) < 1e-10 && Math.abs(dLng) < 1e-10) continue;
+
+        // Midpoint of the segment
+        const midLat = (p1[0] + p2[0]) / 2;
+        const midLng = (p1[1] + p2[1]) / 2;
+
+        // Bearing in degrees: 0 = north, clockwise.
+        // atan2(dLng, dLat) gives angle from north (since lat is y, lng is x).
+        const angleRad = Math.atan2(dLng, dLat);
+        const angleDeg = angleRad * (180 / Math.PI);
+
+        // Arrow pointing along the segment (triangle pointing "up" rotated)
+        const arrowIcon = new DivIcon({
+          className: "arrow-icon",
+          html: `<div style="
+            width: 0;
+            height: 0;
+            border-left: 7px solid transparent;
+            border-right: 7px solid transparent;
+            border-bottom: 12px solid ${color};
+            transform: rotate(${angleDeg}deg);
+            opacity: 0.9;
+            filter: drop-shadow(0 1px 3px rgba(0,0,0,0.4));
+          "></div>`,
+          iconSize: [14, 14],
+          iconAnchor: [7, 7]
+        });
+
+        const arrowMarker = new Marker([midLat, midLng], {
+          icon: arrowIcon,
+          interactive: false,
+          zIndexOffset: -50
+        });
+
+        arrowMarker.addTo(group);
+      }
+    }
+
+    // -----------------------------------------------------------------------
+    // CSV parser
+    // -----------------------------------------------------------------------
+
+    function parseCsv(text) {
+      const lines = text
+        .replace(/^\uFEFF/, "")
+        .split(/\r?\n/)
+        .map(line => line.trim())
+        .filter(Boolean);
+
+      if (lines.length < 2) {
+        throw new Error("CSV needs a header and at least one data row.");
+      }
+
+      const headers = lines[0]
+        .split(",")
+        .map(value => value.trim().toLowerCase());
+
+      const required = ["entity", "timestamp", "lat", "long"];
+      const missing = required.filter(column => !headers.includes(column));
+
+      if (missing.length) {
+        throw new Error("Missing required column(s): " + missing.join(", "));
+      }
+
+      const index = {
+        entity: headers.indexOf("entity"),
+        timestamp: headers.indexOf("timestamp"),
+        lat: headers.indexOf("lat"),
+        long: headers.indexOf("long")
+      };
+
+      const rows = [];
+      const errors = [];
+
+      for (let i = 1; i < lines.length; i++) {
+        const values = lines[i].split(",").map(value => value.trim());
+
+        if (values.length < headers.length) {
+          errors.push(`Line ${i + 1}: not enough columns`);
+          continue;
+        }
+
+        const entity = values[index.entity];
+        const timestamp = values[index.timestamp];
+        const lat = Number(values[index.lat]);
+        const long = Number(values[index.long]);
+        const date = new Date(timestamp);
+
+        if (!entity) {
+          errors.push(`Line ${i + 1}: entity is empty`);
+          continue;
+        }
+
+        if (!timestamp || Number.isNaN(date.getTime())) {
+          errors.push(`Line ${i + 1}: invalid timestamp`);
+          continue;
+        }
+
+        if (!Number.isFinite(lat) || lat < -90 || lat > 90) {
+          errors.push(`Line ${i + 1}: invalid latitude`);
+          continue;
+        }
+
+        if (!Number.isFinite(long) || long < -180 || long > 180) {
+          errors.push(`Line ${i + 1}: invalid longitude`);
+          continue;
+        }
+
+        rows.push({
+          entity,
+          timestamp,
+          date,
+          time: date.getTime(),
+          lat,
+          long
+        });
+      }
+
+      if (!rows.length) {
+        throw new Error("No valid rows were found in the CSV.");
+      }
+
+      rows.sort((a,b) => a.time - b.time);
+
+      return { rows, errors };
+    }
+
+    // -----------------------------------------------------------------------
+    // Dataset
+    // -----------------------------------------------------------------------
+
+    function loadDataset(rows, errors) {
+      stopPlayback();
+
+      state.rows = rows;
+      state.entities = [...new Set(rows.map(row => row.entity))];
+      state.colors.clear();
+
+      state.entities.forEach((entity, index) => {
+        state.colors.set(entity, entityColor(index));
+      });
+
+      state.selectedEntities = new Set(state.entities);
+      state.minTime = rows[0].time;
+      state.maxTime = rows[rows.length - 1].time;
+      state.currentTime = state.minTime;
+
+      timeSlider.min = String(state.minTime);
+      timeSlider.max = String(state.maxTime);
+      timeSlider.step = "1000";
+      timeSlider.value = String(state.currentTime);
+
+      $("statPoints").textContent = rows.length.toLocaleString();
+      $("statEntities").textContent = state.entities.length.toLocaleString();
+      $("statRange").textContent =
+        `${formatShort(new Date(state.minTime))} → ${formatShort(new Date(state.maxTime))}`;
+
+      rangeStartEl.textContent = formatShort(new Date(state.minTime));
+      rangeEndEl.textContent = formatShort(new Date(state.maxTime));
+
+      timeSection.classList.add("visible");
+      applyViewModeUI();
+
+      renderEntityControls();
+      fitDataset();
+      setCurrentTime(state.minTime);
+
+      if (errors.length) {
+        setStatus(
+          `Loaded ${rows.length} valid row(s); skipped ${errors.length} invalid row(s).`,
+          ""
+        );
+      } else {
+        setStatus(`Loaded ${rows.length} data point(s) successfully.`, "success");
+      }
+
+      mapBadge.textContent =
+        `${state.entities.length} entit${state.entities.length === 1 ? "y" : "ies"} · ${rows.length.toLocaleString()} points`;
+    }
+
+    function fitDataset() {
+      if (!state.rows.length) return;
+
+      const south = Math.min(...state.rows.map(row => row.lat));
+      const north = Math.max(...state.rows.map(row => row.lat));
+      const west = Math.min(...state.rows.map(row => row.long));
+      const east = Math.max(...state.rows.map(row => row.long));
+
+      const bounds = new LatLngBounds(
+        [south, west],
+        [north, east]
+      );
+
+      if (bounds.isValid()) {
+        if (south === north && west === east) {
+          map.setView([south, west], 15);
+        } else {
+          map.fitBounds(bounds, {
+            padding: [70,70],
+            maxZoom: 16
+          });
+        }
+      }
+    }
+
+    // -----------------------------------------------------------------------
+    // Entity controls
+    // -----------------------------------------------------------------------
+
+    function renderEntityControls() {
+      entityListEl.innerHTML = "";
+
+      state.entities.forEach(entity => {
+        const count = state.rows.filter(row => row.entity === entity).length;
+
+        const label = document.createElement("label");
+        label.className = "entity-row";
+
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.checked = state.selectedEntities.has(entity);
+
+        checkbox.addEventListener("change", () => {
+          if (checkbox.checked) {
+            state.selectedEntities.add(entity);
+          } else {
+            state.selectedEntities.delete(entity);
+          }
+
+          rebuildMapLayers();
+        });
+
+        const swatch = document.createElement("span");
+        swatch.className = "swatch";
+        swatch.style.background = state.colors.get(entity);
+
+        const name = document.createElement("span");
+        name.className = "entity-name";
+        name.title = entity;
+        name.textContent = entity;
+
+        const countEl = document.createElement("span");
+        countEl.className = "entity-count";
+        countEl.textContent = count;
+
+        label.append(checkbox, swatch, name, countEl);
+        entityListEl.appendChild(label);
+      });
+    }
+
+    function setAllEntities(checked) {
+      state.selectedEntities = checked
+        ? new Set(state.entities)
+        : new Set();
+
+      renderEntityControls();
+      rebuildMapLayers();
+    }
+
+    // -----------------------------------------------------------------------
+    // View mode
+    // -----------------------------------------------------------------------
+
+    function setViewMode(mode) {
+      if (mode !== "time" && mode !== "all") return;
+
+      state.viewMode = mode;
+
+      if (mode === "all") stopPlayback();
+
+      applyViewModeUI();
+      rebuildMapLayers();
+    }
+
+    function applyViewModeUI() {
+      const isTime = state.viewMode === "time";
+
+      modeTimeBtn.classList.toggle("active", isTime);
+      modeAllBtn.classList.toggle("active", !isTime);
+
+      modeTimeBtn.setAttribute("aria-selected", String(isTime));
+      modeAllBtn.setAttribute("aria-selected", String(!isTime));
+
+      modeHint.textContent = isTime
+        ? "Points appear progressively as the timeline advances."
+        : "All data points are shown at once. Movement paths now have a small arrow on every segment indicating direction.";
+
+      timeSection.classList.toggle("hidden-by-mode", !isTime);
+    }
+
+    // -----------------------------------------------------------------------
+    // Time filtering
+    // -----------------------------------------------------------------------
+
+    function visibleRowsFor(entity) {
+      if (state.viewMode === "all") {
+        return state.rows.filter(row => row.entity === entity);
+      }
+
+      return state.rows.filter(row =>
+        row.entity === entity &&
+        row.time <= state.currentTime
+      );
+    }
+
+    function latestRow(entity) {
+      if (state.viewMode === "all") return null;
+
+      let latest = null;
+
+      for (const row of state.rows) {
+        if (row.entity !== entity) continue;
+        if (row.time > state.currentTime) break;
+        latest = row;
+      }
+
+      return latest;
+    }
+
+    // -----------------------------------------------------------------------
+    // Map rendering
+    // -----------------------------------------------------------------------
+
+    function clearMapLayers() {
+      markerGroup.clearLayers();
+      nodeGroup.clearLayers();
+      pathGroup.clearLayers();
+      activeGroup.clearLayers();
+    }
+
+    function rebuildMapLayers() {
+      clearMapLayers();
+
+      if (!state.rows.length) return;
+
+      for (const entity of state.entities) {
+        if (!state.selectedEntities.has(entity)) continue;
+
+        const color = state.colors.get(entity);
+        const rows = visibleRowsFor(entity);
+
+        for (const row of rows) {
+          const marker = new Marker(
+            [row.lat, row.long],
+            {
+              icon: makeDotIcon(color),
+              title: entity
+            }
+          );
+
+          marker.bindPopup(popupHtml(row));
+
+          marker.bindTooltip(tooltipHtml(row, color), {
+            direction: "top",
+            offset: [0, -8],
+            opacity: 1,
+            sticky: false,
+            className: "point-tooltip"
+          });
+
+          marker.addTo(markerGroup);
+          marker.addTo(nodeGroup);
+        }
+
+        // Draw polyline and arrows when path toggle is on
+        if (pathToggle.checked && rows.length > 1) {
+          const latlngs = rows.map(row => [row.lat, row.long]);
+
+          const polyline = new Polyline(latlngs, {
+            color,
+            weight: 4,
+            opacity: .82,
+            smoothFactor: .25
+          });
+
+          polyline.bindTooltip(entity, { sticky: true });
+          polyline.addTo(pathGroup);
+
+          // In "all" view mode, put an arrow on every segment
+          if (state.viewMode === "all") {
+            addArrowsOnAllSegments(latlngs, color, pathGroup);
+          }
+        }
+
+        const latest = latestRow(entity);
+
+        if (latest) {
+          const active = new Marker(
+            [latest.lat, latest.long],
+            {
+              icon: makeActiveIcon(color),
+              zIndexOffset: 1000,
+              title: `${entity} current position`
+            }
+          );
+
+          active.bindPopup(popupHtml(latest));
+
+          active.bindTooltip(tooltipHtml(latest, color), {
+            direction: "top",
+            offset: [0, -14],
+            opacity: 1,
+            className: "point-tooltip"
+          });
+
+          active.addTo(activeGroup);
+        }
+      }
+    }
+
+    // -----------------------------------------------------------------------
+    // Time / playback
+    // -----------------------------------------------------------------------
+
+    function setCurrentTime(value) {
+      if (!state.rows.length) return;
+
+      const time = Math.max(
+        state.minTime,
+        Math.min(state.maxTime, Number(value))
+      );
+
+      state.currentTime = time;
+      timeSlider.value = String(time);
+
+      const date = new Date(time);
+      currentLocalEl.textContent = formatLocal(date);
+      currentUtcEl.textContent = `UTC: ${formatUtc(date)}`;
+
+      rebuildMapLayers();
+    }
+
+    function playbackDelay() {
+      const range = state.maxTime - state.minTime;
+
+      if (range <= 0) return 100;
+
+      const desiredDurationMs = 12000 / Number(speedSelect.value);
+      return Math.max(20, Math.min(100, desiredDurationMs / 120));
+    }
+
+    function playbackTick() {
+      if (!state.playing) return;
+
+      if (state.currentTime >= state.maxTime) {
+        stopPlayback();
+        return;
+      }
+
+      const range = state.maxTime - state.minTime;
+      const increment = Math.max(1000, range / 120);
+
+      setCurrentTime(
+        Math.min(state.maxTime, state.currentTime + increment)
+      );
+
+      state.playTimer = setTimeout(playbackTick, playbackDelay());
+    }
+
+    function startPlayback() {
+      if (!state.rows.length || state.minTime === state.maxTime) return;
+
+      if (state.viewMode !== "time") return;
+
+      if (state.currentTime >= state.maxTime) {
+        setCurrentTime(state.minTime);
+      }
+
+      state.playing = true;
+      playBtn.textContent = "❚❚ Pause";
+      playbackTick();
+    }
+
+    function stopPlayback() {
+      state.playing = false;
+      playBtn.textContent = "▶ Play";
+
+      if (state.playTimer !== null) {
+        clearTimeout(state.playTimer);
+        state.playTimer = null;
+      }
+    }
+
+    // -----------------------------------------------------------------------
+    // File upload
+    // -----------------------------------------------------------------------
+
+    csvInput.addEventListener("change", async event => {
+      const file = event.target.files && event.target.files[0];
+
+      if (!file) return;
+
+      fileNameEl.textContent = file.name;
+      setStatus("Reading CSV…");
+
+      try {
+        const text = await file.text();
+        const result = parseCsv(text);
+        loadDataset(result.rows, result.errors);
+      } catch (error) {
+        stopPlayback();
+        setStatus(error.message || "Could not parse CSV.", "error");
+        mapBadge.textContent = "CSV error";
+      }
+    });
+
+    // -----------------------------------------------------------------------
+    // Sample CSV download
+    // -----------------------------------------------------------------------
+
+    $("sampleBtn").addEventListener("click", () => {
+      const csv = [
+        "entity,timestamp,lat,long",
+        "Vehicle A,2026-09-26T10:00:00Z,28.6139,77.2090",
+        "Vehicle B,2026-09-26T10:05:00Z,28.4595,77.0266",
+        "Vehicle A,2026-09-26T10:10:00Z,28.6200,77.2150",
+        "Vehicle C,2026-09-26T10:15:00Z,28.7041,77.1025",
+        "Vehicle B,2026-09-26T10:20:00Z,28.4700,77.0300",
+        "Vehicle A,2026-09-26T10:25:00Z,28.6280,77.2220",
+        "Vehicle C,2026-09-26T10:30:00Z,28.7100,77.1100",
+        "Vehicle B,2026-09-26T10:35:00Z,28.4800,77.0350",
+        "Vehicle A,2026-09-26T10:40:00Z,28.6350,77.2300",
+        "Vehicle C,2026-09-26T10:45:00Z,28.7160,77.1180",
+        "Vehicle B,2026-09-26T10:50:00Z,28.4900,77.0400",
+        "Vehicle A,2026-09-26T11:00:00Z,28.6420,77.2380"
+      ].join("\r\n");
+
+      const blob = new Blob([csv], {
+        type: "text/csv;charset=utf-8"
+      });
+
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+
+      link.href = url;
+      link.download = "location-analysis-sample.csv";
+      link.style.display = "none";
+
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+      setStatus("Sample CSV downloaded.", "success");
+    });
+
+    // -----------------------------------------------------------------------
+    // Controls
+    // -----------------------------------------------------------------------
+
+    pathToggle.addEventListener("change", rebuildMapLayers);
+
+    timeSlider.addEventListener("input", event => {
+      setCurrentTime(Number(event.target.value));
+    });
+
+    playBtn.addEventListener("click", () => {
+      if (state.playing) stopPlayback();
+      else startPlayback();
+    });
+
+    resetBtn.addEventListener("click", () => {
+      stopPlayback();
+      if (state.minTime !== null) {
+        setCurrentTime(state.minTime);
+      }
+    });
+
+    speedSelect.addEventListener("change", () => {
+      if (state.playing) {
+        stopPlayback();
+        startPlayback();
+      }
+    });
+
+    $("selectAllBtn").addEventListener("click", () => {
+      setAllEntities(true);
+    });
+
+    $("clearAllBtn").addEventListener("click", () => {
+      setAllEntities(false);
+    });
+
+    modeTimeBtn.addEventListener("click", () => setViewMode("time"));
+    modeAllBtn.addEventListener("click", () => setViewMode("all"));
+
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) stopPlayback();
+    });
+
+    // -----------------------------------------------------------------------
+    // Successful initialization
+    // -----------------------------------------------------------------------
+
+    applyViewModeUI();
+
+    mapBadge.textContent = "Map ready · upload a CSV";
+    setStatus("Map initialized. Upload your CSV to begin.", "success");
+
+    requestAnimationFrame(() => map.invalidateSize());
+  </script>
+
+  <script>
+    window.addEventListener("error", function(event) {
+      const status = document.getElementById("status");
+      const badge = document.getElementById("mapBadge");
+
+      if (status && event && event.message) {
+        status.textContent = "Dashboard error: " + event.message;
+        status.className = "status error";
+      }
+
+      if (badge) {
+        badge.textContent = "Dashboard initialization error";
+      }
+    });
+
+    window.addEventListener("unhandledrejection", function(event) {
+      const status = document.getElementById("status");
+      const badge = document.getElementById("mapBadge");
+
+      const message =
+        event && event.reason && event.reason.message
+          ? event.reason.message
+          : String(event.reason || "Unknown error");
+
+      if (status) {
+        status.textContent = "Dashboard error: " + message;
+        status.className = "status error";
+      }
+
+      if (badge) {
+        badge.textContent = "Dashboard initialization error";
+      }
+    });
+  </script>
+</body>
+</html>
